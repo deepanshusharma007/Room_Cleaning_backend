@@ -1,7 +1,8 @@
-from fastapi import APIRouter, UploadFile, Form, HTTPException
+from fastapi import APIRouter, UploadFile, Form, HTTPException, BackgroundTasks
 from supabase import create_client, StorageException
 from postgrest.exceptions import APIError
 from uuid import uuid4
+from app.utils.discord import send_cleaning_to_discord
 
 from app.database import supabase
 from app.config import SUPABASE_URL
@@ -14,6 +15,7 @@ router = APIRouter(
 
 @router.post("/upload")
 async def upload_cleaning(
+    background_tasks: BackgroundTasks,
     cleaner_name: str = Form(...),
     room_number: str = Form(...),
     image: UploadFile = Form(...)
@@ -42,6 +44,13 @@ async def upload_cleaning(
         }
 
         supabase.table("cleaning_receipts").insert(data).execute()
+
+        background_tasks.add_task(
+            send_cleaning_to_discord,
+            cleaner_name,
+            room_number,
+            image_url
+        )
 
         return {
             "message": "Cleaning receipt stored",
